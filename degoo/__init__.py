@@ -631,11 +631,11 @@ class API:
                         i["Size"] = int(i["Size"])
                         
                         # Add a set of Human Readable time stamps based om the less readable API timestamps
-                        times = self._human_readable_times(i['CreationTime'], i['LastModificationTime'], i['LastUploadTime'])
+#                        times = self._human_readable_times(i['CreationTime'], i['LastModificationTime'], i['LastUploadTime'])
         
-                        i["Time_Created"]      = times[0]
-                        i["Time_LastModified"] = times[1]
-                        i["Time_LastUpload"]   = times[2]
+#                        i["Time_Created"]      = times[0]
+#                        i["Time_LastModified"] = times[1]
+#                        i["Time_LastUpload"]   = times[2]
                     
                     self.NAMELEN = max([len(i["Name"]) for i in items]) 
                 
