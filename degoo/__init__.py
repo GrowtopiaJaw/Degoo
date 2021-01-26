@@ -365,7 +365,7 @@ class API:
         '''
         # Add a set of Human Readable timestamps
         c_time = creation
-        m_secs = int(modification)/1000
+        m_secs = int(modification)/1000 if modification else 0
         u_secs = int(upload)/1000
         
         c_datetime = parser.parse(c_time)
