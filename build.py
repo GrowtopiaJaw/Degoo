@@ -17,10 +17,12 @@ those communications aand a Python client implementation.
 @contact:    YndlY2huZXJAeWFob28uY29t    (base64 encoded)
 @deffield    updated: Updated
 '''
-import os, stat, degoo
+import degoo
+import os
+import stat
 
 source = "commands.py"
-commands = ["cd", "get", "ll", "login", "ls", "mkdir", "path", "props", "put", "pwd", "rm", "tree", "user", "test"]
+commands = ["cd", "get", "ll", "login", "ls", "mkdir", "path", "props", "put", "pwd", "rm", "mv", "tree", "user", "test"]
 
 # Make sure the os. functions have the script dir as their working directory
 cwd = os.path.dirname(os.path.abspath(__file__))
@@ -28,15 +30,15 @@ os.chdir(cwd)
 
 if os.getcwd() == cwd:
     Commands = [degoo.command_prefix + c for c in commands]
-    
+
     for c in Commands:
         try:
             os.link(source, c)
-            os.chmod(c, stat.S_IRWXU | stat.S_IRGRP | stat.S_IXGRP | stat.S_IROTH | stat.S_IXOTH);            
+            os.chmod(c, stat.S_IRWXU | stat.S_IRGRP | stat.S_IXGRP | stat.S_IROTH | stat.S_IXOTH);
         except FileExistsError:
             pass
-        
+
     # TODO: Copy default_properties to config dir.
-    # TODO: Create test_data folder if it doens't exist
+    # TODO: Create test_data folder if it doesn't exist
 else:
     print("Weirdness happened!")
