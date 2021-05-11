@@ -18,7 +18,11 @@ those communications aand a Python client implementation.
 @deffield    updated: Updated
 '''
 
-import sys, os, textwrap, degoo
+import degoo
+import os
+import sys
+import textwrap
+import traceback
 
 from argparse import ArgumentParser, HelpFormatter
 
@@ -27,41 +31,52 @@ __version__ = 0.1
 __date__ = '2020-06-03'
 __updated__ = '2020-06-03'
 
-DEBUG = 0
+DEBUG = 1
 TESTRUN = 0
 PROFILE = 0
 
 P = degoo.command_prefix
 
+
 class CLIError(Exception):
     '''Generic exception to raise and log different fatal errors.'''
+
     def __init__(self, msg):
         super().__init__(type(self))
-        self.msg = f"Eror: {msg}" 
+        self.msg = f"Error: {msg}"
+
     def __str__(self):
         return self.msg
+
     def __unicode__(self):
         return self.msg
-    
+
+
 class RawFormatter(HelpFormatter):
+
     def _fill_text(self, text, width, indent):
         return "\n".join([textwrap.fill(line, width) for line in textwrap.indent(textwrap.dedent(text), indent).splitlines()])
 
-def main(argv=None): # IGNORE:C0111
+
+def main(argv=None):  # IGNORE:C0111
     '''Command line options.'''
 
     if argv is None:
         argv = sys.argv
     else:
         sys.argv.extend(argv)
-        
+
     command = os.path.basename(sys.argv[0])
-    
-    program_version = f"v{__version__}" 
+
+    if not command.startswith(P):
+        command = sys.argv[0] = P + sys.argv[1]
+        sys.argv.pop(1)
+
+    program_version = f"v{__version__}"
     program_build_date = str(__updated__)
     program_version_message = '%%(prog)s %s (%s)' % (program_version, program_build_date)
     program_shortdesc = __import__('__main__').__doc__.split("\n")[1]
-    
+
     program_license = f'''
         {program_shortdesc}
 
@@ -82,125 +97,147 @@ def main(argv=None): # IGNORE:C0111
         parser = ArgumentParser(description=program_license, formatter_class=RawFormatter)
         parser.add_argument("-v", "--verbose", action="count", default=0, help="set verbosity level [default: %(default)s]")
         parser.add_argument('-V', '--version', action='version', version=program_version_message)
-        
-        if command == P+"ls" or command == P+"ll":
+
+        if command == P + "ls" or command == P + "ll":
             parser.add_argument('-l', '--long', action='store_true')
             parser.add_argument('-R', '--recursive', action='store_true')
             parser.add_argument('folder', help='The folder/path to list', nargs='?', default=degoo.CWD)
             args = parser.parse_args()
-            
-            if command == P+"ll":
+
+            if command == P + "ll":
                 args.long = True
-            
+
             degoo.ls(args.folder, args.long, args.recursive)
-                
-        elif command == P+"pwd":
+
+        elif command == P + "pwd":
             print(f"Working Directory is {degoo.CWD['Path']}")
 
-        elif command == P+"props":
+        elif command == P + "props":
             parser.add_argument('path', help='The name, path, or ID of degoo item to return properties of (can be a device, folder, file).')
             parser.add_argument('-R', '--recursive', action='store_true')
             parser.add_argument('-b', '--brief', action='store_true')
             args = parser.parse_args()
-            
+
             if args.path.isdigit():
                 args.path = int(args.path)
 
             properties = degoo.get_item(args.path, args.verbose, args.recursive)
-            
+
             brief_props = ["ID", "CategoryName"]
-            
+
             if args.recursive:
                 for path, props in properties.items():
                     print(f"Properties of {path}:")
                     for key, value in props.items():
                         if not args.brief or key in brief_props:
                             print(f"\t{key}: {value}")
-                    print("") # Blank line separating items
+                    print("")  # Blank line separating items
             else:
                 print(f"Properties of {args.path}:")
                 for key, value in properties.items():
                     if not args.brief or key in brief_props:
                         print(f"\t{key}: {value}")
 
-        elif command == P+"path":
+        elif command == P + "path":
             parser.add_argument('path', help='The path to test.')
             args = parser.parse_args()
-            
+
             print(f"Path is: {degoo.get_dir(args.path)}")
-            
-        elif command == P+"cd":
+
+        elif command == P + "cd":
             parser.add_argument('folder', help='The folder/path to makre current.')
             args = parser.parse_args()
 
             cwd = degoo.cd(args.folder)
-            
+
             print(f"Working Directory is now {cwd['Path']}")
 
-        elif command == P+"tree":
+        elif command == P + "tree":
             parser.add_argument('-t', '--times', action='store_true', help="Show timestamps")
             parser.add_argument('folder', nargs='?', help='The folder to put_file it in')
             args = parser.parse_args()
             degoo.tree(args.folder, args.times)
 
-        elif command == P+"mkdir":
+        elif command == P + "mkdir":
             parser.add_argument('folder', help='The folder/path to list')
             args = parser.parse_args()
-            
-            path = degoo.mkpath(args.folder)
+
+            ID = degoo.mkpath(args.folder)
+            path = degoo.get_item(ID)["FilePath"]
             print(f"Created folder {path}")
 
-        elif command == P+"rm":
+        elif command == P + "rm":
             parser.add_argument('file', help='The file/folder/path to remove')
             args = parser.parse_args()
-            
+
             path = degoo.rm(args.file)
             print(f"Deleted {path}")
 
-        elif command == P+"get":
+        elif command == P + "mv":
+            parser.add_argument('source', help='The path of file/folder to be moved')
+            parser.add_argument('target', help='Path where the file or directory will be moved')
+
+            args = parser.parse_args()
+
+            abs_from = degoo.util.path_str(args.source)
+
+            try:
+                ID = degoo.mv(args.source, args.target)
+
+                if ID:
+                    abs_to = degoo.util.path_str(ID)
+                    print(f"Moved {abs_from} to {abs_to}")
+            except Exception as e:
+                print(e)
+
+        elif command == P + "get":
             parser.add_argument('-d', '--dryrun', action='store_true', help="Show what would be uploaded but don't upload it.")
             parser.add_argument('-f', '--force', action='store_true', help="Force downloads, else only if local file missing.")
             parser.add_argument('-s', '--scheduled', action='store_true', help="Download only when the configured schedule allows.")
             parser.add_argument('remote', help='The file/folder/path to get')
             parser.add_argument('local', nargs='?', help='The directory to put it in (current working directory if not specified)')
             args = parser.parse_args()
-            
+
             degoo.get(args.remote, args.local, args.verbose, not args.force, args.dryrun, args.scheduled)
 
-        elif command == P+"put":
+        elif command == P + "put":
             parser.add_argument('-d', '--dryrun', action='store_true', help="Show what would be uploaded but don't upload it.")
             parser.add_argument('-f', '--force', action='store_true', help="Force uploads, else only upload if changed.")
             parser.add_argument('-s', '--scheduled', action='store_true', help="Upload only when the configured schedule allows.")
             parser.add_argument('local', help='The file/folder/path to put')
             parser.add_argument('remote', nargs='?', help='The remote folder to put it in')
             args = parser.parse_args()
-            
+
             result = degoo.put(args.local, args.remote, args.verbose, not args.force, args.dryrun, args.scheduled)
-            
+
             if not args.dryrun:
                 if len(result) == 3:
                     ID, Path, URL = result
                     print(f"Uploaded {args.local} to {Path} with Degoo ID: {ID} and Download URL\n{URL}")
                 elif len(result) == 2:
-                    ID, Path  = result
+                    ID, Path = result
                     print(f"Uploaded {args.local} to {Path} with Degoo ID: {ID}")
                 else:
                     print(f"WARNING: Cannot upload {args.local}, it is not a File or Directory.")
-            
-        elif command == P+"login":
-            success = degoo.login()
+
+        elif command == P + "login":
+            parser.add_argument('username', nargs='?', help="Your Degoo account username.")
+            parser.add_argument('password', nargs='?', help="Your Degoo account password (we don't recommend passing passwords on the command line, for security reasons)")
+            args = parser.parse_args()
+
+            success = degoo.login(args.username, args.password)
             if success:
-                print("Successfuly logged in.")
+                print("Successfully logged in.")
             else:
                 print("Login failed.")
 
-        elif command == P+"user":
+        elif command == P + "user":
             props = degoo.userinfo()
             print(f"Logged in user:")
             for key, value in props.items():
                 print(f"\t{key}: {value}")
 
-        elif command == P+"test":
+        elif command == P + "test":
             degoo.test()
 
         return 0
@@ -209,11 +246,25 @@ def main(argv=None): # IGNORE:C0111
         return 0
     except Exception as e:
         if DEBUG or TESTRUN:
-            raise(e)
+
+            def format_exception(e):
+                exception_list = traceback.format_stack()
+                exception_list = exception_list[:-2]
+                exception_list.extend(traceback.format_tb(sys.exc_info()[2]))
+                exception_list.extend(traceback.format_exception_only(sys.exc_info()[0], sys.exc_info()[1]))
+
+                exception_str = "Traceback (most recent call last):\n"
+                exception_str += "".join(exception_list)
+
+                return exception_str
+
+            sys.stderr.write(format_exception(e))
+
         indent = len(command) * " "
         sys.stderr.write(command + ": " + str(e) + "\n")
         sys.stderr.write(indent + "  for help use --help\n")
         return 2
+
 
 if __name__ == "__main__":
     if DEBUG:
